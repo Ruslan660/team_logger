@@ -1,4 +1,4 @@
-import 'package:team_logger/team_logger.dart';
+import 'package:team_logger/team_logger_io.dart';
 import 'package:test/test.dart';
 
 void main() {

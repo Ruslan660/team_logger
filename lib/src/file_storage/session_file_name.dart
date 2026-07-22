@@ -6,7 +6,7 @@
 library;
 
 final _fileNameRe = RegExp(
-  r'^tlog_(\d{8}T\d{6}-[0-9a-f]{4})_p(\d{2})\.jsonl$',
+  r'^tlog_(\d{8}T\d{6}-[0-9a-f]{4,32})_p(\d{2,})\.jsonl$',
 );
 
 /// Parsed identity of one chunk file.

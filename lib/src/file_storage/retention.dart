@@ -44,14 +44,17 @@ Future<void> applyRetention(
       sessions.values.fold(0, (sum, session) => sum + session.bytes);
 
   Future<void> delete(MapEntry<String, _Session> entry) async {
+    var freed = 0;
     for (final file in entry.value.files) {
       try {
+        final size = await file.length();
         await file.delete();
+        freed += size;
       } on IOException {
-        // Best effort.
+        // Best effort; an undeleted file keeps counting toward the total.
       }
     }
-    totalBytes -= entry.value.bytes;
+    totalBytes -= freed;
   }
 
   final deleted = <String>{};

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:team_logger/team_logger.dart';
+import 'package:team_logger/team_logger_io.dart';
 import 'package:test/test.dart';
 
 /// Collects every published [Log] so tests can encode real records.
@@ -123,4 +124,37 @@ void main() {
       expect(json['msg'], contains('truncated'));
     });
   });
+
+  group('json safety', () {
+    test('cyclic data does not hang or throw', () {
+      final map = <String, Object?>{'a': 1};
+      map['self'] = map;
+      final log = capture((log) => log.i('x', data: map)).single;
+
+      final json = jsonDecode(encodeLog(log, maxRecordBytes: 32 * 1024))
+          as Map<String, Object?>;
+      expect((json['data']! as Map)['self'], '…[cycle]');
+    });
+
+    test('non-string map keys become strings', () {
+      final log = capture((log) => log.i('x', data: {1: 'one'})).single;
+
+      final json = jsonDecode(encodeLog(log, maxRecordBytes: 32 * 1024))
+          as Map<String, Object?>;
+      expect(json['data'], {'1': 'one'});
+    });
+
+    test('fallback record always fits and parses', () {
+      final log = capture((log) => log.e('boom')).single;
+
+      final line = encodeFallbackLog(log, reason: 'test reason');
+
+      expect(utf8.encode(line).length, lessThan(512));
+      final json = jsonDecode(line) as Map<String, Object?>;
+      expect(json['seq'], log.sequenceNum);
+      expect(json['msg'], contains('test reason'));
+      expect(json['trunc'], isTrue);
+    });
+  });
 }
+
