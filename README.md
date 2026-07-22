@@ -13,6 +13,14 @@ formatting, and customizable styling themes.
 
 ---
 
+## File-based session logs
+
+Logs of every session can be persisted to disk and sent to support as a
+zip archive. The module lives in a separate `dart:io` entrypoint:
+`package:team_logger/team_logger_io.dart`. See
+[doc/file_storage.md](doc/file_storage.md).
+
+
 ## Features
 
 * **Color & Dynamic Themes**: Style individual log elements using ANSI escape
