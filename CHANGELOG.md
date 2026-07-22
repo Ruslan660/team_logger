@@ -1,3 +1,10 @@
+## 0.4.0
+
+- Add file-based session log storage (`package:team_logger/team_logger_io.dart`):
+  `FileLogStorage` writes JSON Lines chunks with rotation and startup
+  retention, `exportArchive()` produces a zip snapshot for support
+  uploads. See `doc/file_storage.md`.
+
 ## 0.3.0
 
 - Update README.

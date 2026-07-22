@@ -1,6 +1,6 @@
 name: team_logger
 description: A logging library for big teams, big applications and huge logs.
-version: 0.3.0
+version: 0.4.0
 repository: https://github.com/vi-k/team_logger
 
 environment:
@@ -8,6 +8,7 @@ environment:
 
 dependencies:
   ansi_escape_codes: ^3.1.2
+  archive: ^4.0.0
   clock: ^1.1.2
   format: ^1.6.0
   logger_builder: ^0.3.1
