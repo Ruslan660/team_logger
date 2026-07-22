@@ -92,4 +92,36 @@ void main() {
     await storage.flush().timeout(const Duration(seconds: 5));
     await storage.close().timeout(const Duration(seconds: 5));
   });
+
+  test('double-tapped export: concurrent calls serialize, zip stays valid',
+      () async {
+    final storage = FileLogStorage(directory: dir);
+    final log = Logger('test')
+      ..level = LogLevels.all
+      ..publisher = storage;
+
+    for (var i = 0; i < 20; i++) {
+      log.i('record $i');
+    }
+
+    // Both exports must complete and the surviving archive must parse.
+    final results = await Future.wait([
+      storage.exportArchive(),
+      storage.exportArchive(),
+    ]).timeout(const Duration(seconds: 15));
+
+    expect(results[0], isNotNull);
+    expect(results[1], isNotNull);
+
+    final archive =
+        ZipDecoder().decodeBytes(results[1]!.readAsBytesSync());
+    for (final f in archive.files) {
+      final text = utf8.decode(f.content);
+      for (final line in const LineSplitter().convert(text)) {
+        expect(() => jsonDecode(line), returnsNormally);
+      }
+    }
+
+    await storage.close();
+  });
 }

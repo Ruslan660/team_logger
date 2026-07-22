@@ -55,6 +55,10 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   /// without a listener (vendor race), so they must never interleave.
   Future<void> _flushLock = Future.value();
 
+  /// Serializes exports: a double-tapped "send logs" button must not
+  /// write the same archive path from two isolates at once.
+  Future<void> _exportLock = Future.value();
+
   bool _initialized = false;
   bool _closed = false;
   bool _disabled = false;
@@ -217,7 +221,16 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   /// Files are buffered in memory while zipping; with default limits
   /// that is up to ~20 MiB, size the caps accordingly. The deflate work
   /// runs in a separate isolate, so the UI never skips frames on it.
-  Future<File?> exportArchive({File? target}) async {
+  ///
+  /// Concurrent calls are serialized: the second waits for the first
+  /// and then builds its own fresh snapshot.
+  Future<File?> exportArchive({File? target}) {
+    final result = _exportLock.then((_) => _exportArchive(target: target));
+    _exportLock = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<File?> _exportArchive({File? target}) async {
     await flush();
 
     try {
