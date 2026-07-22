@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
 import 'package:archive/archive.dart';
@@ -214,7 +215,8 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   /// Returns `null` when there is nothing to export or the export failed.
   ///
   /// Files are buffered in memory while zipping; with default limits
-  /// that is up to ~20 MiB, size the caps accordingly.
+  /// that is up to ~20 MiB, size the caps accordingly. The deflate work
+  /// runs in a separate isolate, so the UI never skips frames on it.
   Future<File?> exportArchive({File? target}) async {
     await flush();
 
@@ -229,10 +231,9 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
       });
       if (entries.isEmpty) return null;
 
-      final archive = Archive();
-      for (final (name, bytes) in entries) {
-        archive.addFile(ArchiveFile(name, bytes.length, bytes));
-      }
+      // Compressing ~20 MiB takes hundreds of milliseconds of pure CPU;
+      // done here it would block this isolate's event loop.
+      final zipBytes = await _zipInIsolate(entries);
 
       final out =
           target ?? File('${directory.path}/export/tlogs_$sessionId.zip');
@@ -249,7 +250,7 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
           }
         }
       }
-      await out.writeAsBytes(ZipEncoder().encode(archive));
+      await out.writeAsBytes(zipBytes);
       return out;
     } on Object catch (error, stackTrace) {
       try {
@@ -352,4 +353,18 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
     _lastFsync = now;
     await _raf!.flush();
   }
+}
+
+/// Runs the CPU-heavy zip encoding in a separate isolate. Top-level on
+/// purpose: a closure created inside a method would capture `this`,
+/// which holds unsendable state (futures used as locks).
+Future<List<int>> _zipInIsolate(List<(String, List<int>)> entries) =>
+    Isolate.run(() => _encodeZip(entries));
+
+List<int> _encodeZip(List<(String, List<int>)> entries) {
+  final archive = Archive();
+  for (final (name, bytes) in entries) {
+    archive.addFile(ArchiveFile(name, bytes.length, bytes));
+  }
+  return ZipEncoder().encode(archive);
 }
