@@ -15,9 +15,6 @@ final class FileLogStorageOptions {
   /// deleted, so the tail of the session is what survives.
   final int chunksPerSession;
 
-  /// How many past sessions to keep.
-  final int maxSessions;
-
   /// Sessions older than this are deleted on startup.
   final Duration maxAge;
 
@@ -40,7 +37,6 @@ final class FileLogStorageOptions {
   const FileLogStorageOptions({
     this.maxSessionBytes = 2 * 1024 * 1024,
     this.chunksPerSession = 4,
-    this.maxSessions = 10,
     this.maxAge = const Duration(days: 7),
     this.maxTotalBytes = 20 * 1024 * 1024,
     this.maxRecordBytes = 32 * 1024,
@@ -49,7 +45,6 @@ final class FileLogStorageOptions {
     this.onInternalError,
   })  : assert(maxSessionBytes > 0, 'maxSessionBytes must be positive'),
         assert(chunksPerSession > 0, 'chunksPerSession must be positive'),
-        assert(maxSessions > 0, 'maxSessions must be positive'),
         assert(maxTotalBytes > 0, 'maxTotalBytes must be positive'),
         assert(maxRecordBytes > 0, 'maxRecordBytes must be positive'),
         assert(

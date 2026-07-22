@@ -43,19 +43,6 @@ void main() {
     expect(names().where((n) => n.contains(fresh)), hasLength(1));
   });
 
-  test('keeps only maxSessions newest past sessions', () async {
-    for (var i = 0; i < 12; i++) {
-      session(Duration(hours: i + 1));
-    }
-    final current = session(Duration.zero);
-
-    await applyRetention(dir, options, currentSessionId: current, now: now);
-
-    final left = names();
-    expect(left, hasLength(11)); // 10 past + current
-    expect(left.where((n) => n.contains(current)), hasLength(1));
-  });
-
   test('deletes oldest sessions until under maxTotalBytes', () async {
     const small = FileLogStorageOptions(
       maxTotalBytes: 250,

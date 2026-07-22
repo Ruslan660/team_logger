@@ -8,7 +8,6 @@ void main() {
 
       expect(options.maxSessionBytes, 2 * 1024 * 1024);
       expect(options.chunksPerSession, 4);
-      expect(options.maxSessions, 10);
       expect(options.maxAge, const Duration(days: 7));
       expect(options.maxTotalBytes, 20 * 1024 * 1024);
       expect(options.maxRecordBytes, 32 * 1024);
@@ -29,10 +28,6 @@ void main() {
     test('rejects invalid values', () {
       expect(
         () => FileLogStorageOptions(chunksPerSession: 0),
-        throwsA(isA<AssertionError>()),
-      );
-      expect(
-        () => FileLogStorageOptions(maxSessions: -1),
         throwsA(isA<AssertionError>()),
       );
       expect(

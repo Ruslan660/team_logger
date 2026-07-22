@@ -5,9 +5,9 @@ import 'session_file_name.dart';
 
 /// Startup cleanup of the log directory.
 ///
-/// Deletes whole sessions (all chunks at once), oldest first, in three
-/// passes: older than `maxAge`, beyond `maxSessions`, and until the
-/// directory fits `maxTotalBytes`. The current session and files with
+/// Deletes whole sessions (all chunks at once), oldest first, in two
+/// passes: older than `maxAge`, then until the directory fits
+/// `maxTotalBytes`. The current session and files with
 /// foreign names are never touched. Deletion errors are swallowed:
 /// retention must not break logging.
 Future<void> applyRetention(
@@ -61,13 +61,6 @@ Future<void> applyRetention(
       await delete(entry);
       deleted.add(entry.key);
     }
-  }
-
-  final alive = past.where((e) => !deleted.contains(e.key)).toList();
-  final overCount = alive.length - options.maxSessions;
-  for (final entry in alive.take(overCount < 0 ? 0 : overCount)) {
-    await delete(entry);
-    deleted.add(entry.key);
   }
 
   for (final entry in past) {
