@@ -49,7 +49,13 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   /// publisher queue, and [RandomAccessFile] forbids overlapping calls.
   Future<void> _ioLock = Future.value();
 
+  /// Serializes whole flush()/close() calls. Two overlapping
+  /// `AsyncPublisherBase.flush()` calls can strand a queue controller
+  /// without a listener (vendor race), so they must never interleave.
+  Future<void> _flushLock = Future.value();
+
   bool _initialized = false;
+  bool _closed = false;
   bool _disabled = false;
   int _failures = 0;
   DateTime? _lastFsync;
@@ -86,7 +92,7 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   }
 
   Future<void> _handle(Log log) async {
-    if (_disabled) return;
+    if (_disabled || _closed) return;
     if (log.level < options.minLevel) return;
 
     // A throwing filter must not kill the stream listener; treat it as
@@ -103,7 +109,13 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
     try {
       line = encodeLog(log, maxRecordBytes: options.maxRecordBytes);
     } on Object catch (error) {
-      line = encodeFallbackLog(log, reason: error.toString());
+      String reason;
+      try {
+        reason = error.toString();
+      } on Object {
+        reason = error.runtimeType.toString();
+      }
+      line = encodeFallbackLog(log, reason: reason);
     }
 
     try {
@@ -139,18 +151,26 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
     }
   }
 
-  /// Drains the queue and syncs the current chunk to disk.
-  @override
-  Future<void> flush() async {
-    await super.flush();
-    await _locked(() async {
-      try {
-        await _raf?.flush();
-      } on IOException {
-        // Same policy as writes: never throw.
-      }
-    });
+  Future<T> _flushSerial<T>(Future<T> Function() action) {
+    final result = _flushLock.then((_) => action());
+    _flushLock = result.then((_) {}, onError: (_) {});
+    return result;
   }
+
+  /// Drains the queue and syncs the current chunk to disk. Calls are
+  /// serialized: concurrent flushes run one after another.
+  @override
+  Future<void> flush() => _flushSerial(() async {
+        if (_closed) return;
+        await super.flush();
+        await _locked(() async {
+          try {
+            await _raf?.flush();
+          } on IOException {
+            // Same policy as writes: never throw.
+          }
+        });
+      });
 
   /// Files of all sessions in this directory, newest session first,
   /// chunks in write order. Flushes the current session before listing.
@@ -159,7 +179,10 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   /// stable artifact use [exportArchive].
   Future<List<File>> collectFiles() async {
     await flush();
+    return _listSessionFiles();
+  }
 
+  Future<List<File>> _listSessionFiles() async {
     final infos = <(SessionFileInfo, File)>[];
     try {
       await for (final entry in directory.list()) {
@@ -185,26 +208,47 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   /// Zips a point-in-time snapshot of all session files into [target]
   /// (default: `<directory>/export/tlogs_<sessionId>.zip`) and returns it.
   ///
+  /// The snapshot is taken under the write lock, so no record lands and
+  /// no rotation happens between reading the first and the last file.
   /// The archive is immutable — safe to upload while logging continues.
   /// Returns `null` when there is nothing to export or the export failed.
+  ///
+  /// Files are buffered in memory while zipping; with default limits
+  /// that is up to ~20 MiB, size the caps accordingly.
   Future<File?> exportArchive({File? target}) async {
-    final files = await collectFiles();
-    if (files.isEmpty) return null;
+    await flush();
 
     try {
+      // Read all bytes atomically with respect to writes and rotation.
+      final entries = await _locked(() async {
+        final files = await _listSessionFiles();
+        return [
+          for (final file in files)
+            (file.uri.pathSegments.last, await file.readAsBytes()),
+        ];
+      });
+      if (entries.isEmpty) return null;
+
       final archive = Archive();
-      for (final file in files) {
-        // Bytes are read once; a partial trailing line is fine, JSONL
-        // readers must tolerate it anyway.
-        final bytes = await file.readAsBytes();
-        archive.addFile(
-          ArchiveFile(file.uri.pathSegments.last, bytes.length, bytes),
-        );
+      for (final (name, bytes) in entries) {
+        archive.addFile(ArchiveFile(name, bytes.length, bytes));
       }
 
       final out =
           target ?? File('${directory.path}/export/tlogs_$sessionId.zip');
       await out.parent.create(recursive: true);
+      if (target == null) {
+        // Keep at most one default archive around.
+        await for (final old in out.parent.list()) {
+          if (old is File && old.path != out.path) {
+            try {
+              await old.delete();
+            } on IOException {
+              // Best effort.
+            }
+          }
+        }
+      }
       await out.writeAsBytes(ZipEncoder().encode(archive));
       return out;
     } on Object catch (error, stackTrace) {
@@ -218,18 +262,20 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
   }
 
   @override
-  Future<void> close() async {
-    await super.close();
-    await _locked(() async {
-      try {
-        await _raf?.flush();
-        await _raf?.close();
-      } on IOException {
-        // Closing must not throw either.
-      }
-      _raf = null;
-    });
-  }
+  Future<void> close() => _flushSerial(() async {
+        if (_closed) return;
+        _closed = true;
+        await super.close();
+        await _locked(() async {
+          try {
+            await _raf?.flush();
+            await _raf?.close();
+          } on IOException {
+            // Closing must not throw either.
+          }
+          _raf = null;
+        });
+      });
 
   Future<void> _init() async {
     await directory.create(recursive: true);
@@ -263,6 +309,7 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
     } on Object {
       try {
         await raf.close();
+        await file.delete();
       } on IOException {
         // Ignore.
       }
@@ -284,12 +331,14 @@ final class FileLogStorage extends AsyncPublisherBase<Log> {
     await _openChunk(_chunkIndex + 1);
 
     while (_liveChunks.length > options.chunksPerSession) {
-      final oldest = _liveChunks.removeAt(0);
+      final oldest = _liveChunks.first;
       try {
         await File('${directory.path}/${chunkFileName(sessionId, oldest)}')
             .delete();
+        _liveChunks.removeAt(0);
       } on IOException {
-        // A stuck chunk costs disk space, not correctness.
+        // Kept in the list, so the next rotation retries the delete.
+        break;
       }
     }
   }

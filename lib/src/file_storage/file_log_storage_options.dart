@@ -46,7 +46,10 @@ final class FileLogStorageOptions {
   })  : assert(maxSessionBytes > 0, 'maxSessionBytes must be positive'),
         assert(chunksPerSession > 0, 'chunksPerSession must be positive'),
         assert(maxTotalBytes > 0, 'maxTotalBytes must be positive'),
-        assert(maxRecordBytes > 0, 'maxRecordBytes must be positive'),
+        assert(
+          maxRecordBytes >= 512,
+          'maxRecordBytes must be at least 512 B so the fallback record fits',
+        ),
         assert(
           maxRecordBytes < maxSessionBytes / chunksPerSession,
           'a single record must fit into one chunk',

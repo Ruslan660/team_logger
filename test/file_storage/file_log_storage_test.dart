@@ -21,10 +21,10 @@ void main() {
     ..publisher = storage;
 
   List<File> chunkFiles() => (dir
-          .listSync()
-          .whereType<File>()
-          .where((f) => parseFileName(f.uri.pathSegments.last) != null)
-          .toList())
+      .listSync()
+      .whereType<File>()
+      .where((f) => parseFileName(f.uri.pathSegments.last) != null)
+      .toList())
     ..sort((a, b) => a.path.compareTo(b.path));
 
   test('writes header line first, then records', () async {
@@ -70,9 +70,8 @@ void main() {
     final files = chunkFiles();
     expect(files.length, lessThanOrEqualTo(4));
 
-    final parts = files
-        .map((f) => parseFileName(f.uri.pathSegments.last)!.part)
-        .toList();
+    final parts =
+        files.map((f) => parseFileName(f.uri.pathSegments.last)!.part).toList();
     expect(parts.contains(0), isFalse); // oldest chunk is gone
 
     // Every chunk starts with a session header.
@@ -113,8 +112,7 @@ void main() {
     await storage.close();
   });
 
-  test('disables itself after 5 consecutive failures, reports once',
-      () async {
+  test('disables itself after 5 consecutive failures, reports once', () async {
     final errors = <Object>[];
     // A file where the directory should be: every init attempt fails.
     final blocked = File('${dir.path}/blocked')..createSync();

@@ -71,9 +71,8 @@ void main() {
         ),
       ).single;
 
-      final json =
-          jsonDecode(encodeLog(log, maxRecordBytes: 32 * 1024))
-              as Map<String, Object?>;
+      final json = jsonDecode(encodeLog(log, maxRecordBytes: 32 * 1024))
+          as Map<String, Object?>;
       expect(json['tags'], ['net']);
       expect(json['data'], {'a': 1});
       expect(json['err'], 'Exception: bad');
@@ -85,9 +84,8 @@ void main() {
         (log) => log.i('x', data: {'conn': _Unserializable()}),
       ).single;
 
-      final json =
-          jsonDecode(encodeLog(log, maxRecordBytes: 32 * 1024))
-              as Map<String, Object?>;
+      final json = jsonDecode(encodeLog(log, maxRecordBytes: 32 * 1024))
+          as Map<String, Object?>;
       expect(json['data'], {'conn': '<socket fd=3>'});
     });
 

@@ -12,12 +12,12 @@ String encodeSessionHeader({
   required Map<String, Object?> meta,
 }) =>
     '${jsonEncode({
-      'kind': 'session',
-      'schema': 1,
-      'sessionId': sessionId,
-      'startedAt': startedAt.toUtc().toIso8601String(),
-      'meta': _jsonSafe(meta, _maxDataDepth, <Object>{}),
-    })}\n';
+          'kind': 'session',
+          'schema': 1,
+          'sessionId': sessionId,
+          'startedAt': startedAt.toUtc().toIso8601String(),
+          'meta': _jsonSafe(meta, _maxDataDepth, <Object>{}),
+        })}\n';
 
 /// Encodes one [Log] as a JSON line no longer than [maxRecordBytes].
 ///
@@ -68,15 +68,14 @@ String encodeLog(Log log, {required int maxRecordBytes}) {
 
 /// Minimal record for logs that failed normal encoding. Keeps identity
 /// fields only, so it always fits and always encodes.
-String encodeFallbackLog(Log log, {required String reason}) =>
-    '${jsonEncode({
-      'ts': log.time.toUtc().toIso8601String(),
-      'seq': log.sequenceNum,
-      'lvl': log.level,
-      'lvlName': log.levelName,
-      'msg': _cutUtf8('[encode failed: $reason]', 256),
-      'trunc': true,
-    })}\n';
+String encodeFallbackLog(Log log, {required String reason}) => '${jsonEncode({
+          'ts': log.time.toUtc().toIso8601String(),
+          'seq': log.sequenceNum,
+          'lvl': log.level,
+          'lvlName': log.levelName,
+          'msg': _cutUtf8('[encode failed: $reason]', 256),
+          'trunc': true,
+        })}\n';
 
 String _tryEncode(
   Log log, {

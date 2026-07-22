@@ -44,10 +44,7 @@ void main() {
   });
 
   test('deletes oldest sessions until under maxTotalBytes', () async {
-    const small = FileLogStorageOptions(
-      maxTotalBytes: 250,
-      maxRecordBytes: 100,
-    );
+    const small = FileLogStorageOptions(maxTotalBytes: 250);
     final oldest = session(const Duration(hours: 3), chunkSize: 100);
     session(const Duration(hours: 2), chunkSize: 100);
     session(const Duration(hours: 1), chunkSize: 100);
@@ -59,10 +56,7 @@ void main() {
   });
 
   test('never deletes the current session', () async {
-    const small = FileLogStorageOptions(
-      maxTotalBytes: 100,
-      maxRecordBytes: 50,
-    );
+    const small = FileLogStorageOptions(maxTotalBytes: 100);
     final current = session(const Duration(days: 30), chunkSize: 200);
 
     await applyRetention(dir, small, currentSessionId: current, now: now);

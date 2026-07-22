@@ -35,9 +35,7 @@ Future<void> applyRetention(
     }
   }
 
-  final past = sessions.entries
-      .where((e) => e.key != currentSessionId)
-      .toList()
+  final past = sessions.entries.where((e) => e.key != currentSessionId).toList()
     ..sort((a, b) => a.value.startedAt.compareTo(b.value.startedAt));
 
   var totalBytes =
